@@ -2431,7 +2431,7 @@ int main()
 #### 水平触发(level triggered, LT)
 
 - epoll的缺省的工作方式，并且同时支持 block 和 non-block socket
-- 在这种做法中，内核告诉你一个文件描述符是否就绪了，然后你可以对这个就绪的 fd 进行 IO 操作。如果你不作任何操作，内核还是会继续通知你的
+- 在这种做法中，内核告诉你一个文件描述符是否就绪了，然后你可以对这个就绪的 fd 进行 IO 操作。如果你不作任何操作，内核还是会继续通知你的。**所以可以不用while循环一次性读完**。
 
 #### 边沿触发(edge triggered, ET)
 
@@ -2453,6 +2453,39 @@ int main()
     - 用户不读数据，数据一致在缓冲区中，epoll下次检测的时候就不通知了
     - 用户只读了一部分数据，epoll不通知
     - 缓冲区的数据读完了，不通知
+   
+#### 问题分析
+
+- **ET是高速工作方式，只支持no-block socket**
+    本人测了管道的文件描述符，发现默认是阻塞的。 因为buf.szie() = 5, read()函数一次只能读5个字节。epoll监听cfd的 EPOLLIN | EPOLLET事件，内核只提醒一次。如果read()函数一次读不完，又没有下一批数据到来（无法边缘触发），还使用while函数的话，程序将阻塞在read()函数，无法继续执行。正确做法是：还需要将cfd设置为非阻塞，用while循环持续读。
+```c++
+// 设置cfd属性非阻塞
+int flag = fcntl(cfd, F_GETFL);
+flag |= O_NONBLOCK;
+fcntl(cfd, F_SETFL, flag);
+
+- **不能将errno = EAGAIN视为错误**
+    平时read函数读阻塞的文件描述符时，返回了-1，代表发生错误。但，因为套接字的文件描述符被设置为非阻塞，flag |= O_NONBLOCK ;  所以当非阻塞读数据，没有读到数据，返回了-1时，不能单纯的将它作为错误处理，而要继续判断errno的值。如果返回值为-1，且errno = EAGAIN，那么代表这批数据已经读完了。EAGAIN代表：错误，再读一次。这次没数据，下一次可能还会给你发数据。
+```c++
+ 
+while( (len = read(curfd, buf, sizeof(buf))) > 0) {    //非阻塞不断地读数据
+    // 打印数据
+    // printf("recv data : %s\n", buf);
+    write(STDOUT_FILENO, buf, len);
+    write(curfd, buf, len);
+}
+if(len == 0) {                        // 对方断开连接，没有数据可读了。
+    printf("client closed....");
+}else if(len == -1) {                //非阻塞读数据，把数据读完了，返回了-1.
+    if(errno == EAGAIN) {
+        printf("data over.....");
+    }else {
+        perror("read");
+        exit(-1);
+    }
+    
+}
+
 
 #### 代码(ET)
 
