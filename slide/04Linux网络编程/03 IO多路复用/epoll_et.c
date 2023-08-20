@@ -55,7 +55,7 @@ int main() {
 
                 // 设置cfd属性非阻塞
                 int flag = fcntl(cfd, F_GETFL);
-                flag | O_NONBLOCK;
+                flag |= O_NONBLOCK;
                 fcntl(cfd, F_SETFL, flag);
 
                 epev.events = EPOLLIN | EPOLLET;    // 设置边沿触发
