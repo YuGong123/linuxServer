@@ -1562,7 +1562,7 @@ int main()
 
 ### 端口复用
 - 问题状况：
-假设主动断开连接的是Server端，那么Server端就会经历TIME_WAIT状态，等待2倍MSL时间。这段时间内Server端还没有关闭，它占用的端口Port号，无法复用。这时候如果重新启动Server端，那么这个端口Port号是复用不了的。
+假设主动断开连接的是Server端，那么Server端就会经历TIME_WAIT状态，等待2倍MSL时间。这段时间内Server端还没有关闭，它占用的端口Port号，无法复用。这时候如果重新启动Server端，那么这个端口Port号是复用不了的，会出现Bind error:Address already in use。
 
 #### 用途
 
